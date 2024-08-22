@@ -21,6 +21,10 @@ const uint8_t downPin = 3; //blue
 const uint8_t selectPin = 4; //green
 const uint8_t backPin = 5; //yellow
 
+// setup for MCP9601
+#define tc_address (0x67)
+Adafruit_MCP9601 mcp;
+
 // setup for display
 #define disp_address (0x3C)
 
@@ -59,8 +63,11 @@ const uint8_t KD = 50; // default
 uint8_t kp, ki, kd;
 
 // variables for display and control
-uint8_t currentTemp = 93; // test value, will be fed from TC
+float currentTemp; // will be fed from TC
 uint8_t valueShown;
+uint16_t windowStartTime;
+uint16_t windowSize = 100;
+
 
 
 void setup() {
@@ -90,8 +97,20 @@ void setup() {
   display.println("hello");
   display.println("fuck you");
   display.println("coffee <3");
-  display.display();
 
+  // starting the TCA
+  if (! mcp.begin(tc_address)) {
+    display.clearDisplay();
+    display.println("TC ERROR");
+    display.display();
+    while (1);
+  }
+  mcp.setADCresolution(MCP9600_ADCRESOLUTION_18);
+  mcp.setThermocoupleType(MCP9600_TYPE_K);
+  mcp.setFilterCoefficient(3);
+  mcp.enable(true);
+
+  display.display();
   delay(4000);
 
   pinMode(upPin, INPUT_PULLUP);
@@ -107,6 +126,8 @@ void setup() {
   selectButton.interval(intervalMs);
   backButton.attach(backPin);
   backButton.interval(intervalMs);
+
+  windowStartTime = millis();
 
   homeDisplay();
 }
@@ -128,8 +149,8 @@ void brewDisplay() {
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.println("Temp:    C");
-  display.setCursor(70,0);
+  display.println("Temp:     ");
+  display.setCursor(60,0);
   display.println(currentTemp);
 
   display.println("   Brew:");
@@ -242,4 +263,8 @@ void checkButtons() {
 
 void loop() {
   checkButtons();
+  // update current temp every 100 ms
+  if( millis() - windowStartTime > windowSize) {
+    currentTemp = mcp.readThermocouple();
+  }
 }
