@@ -12,14 +12,14 @@
 #include <Bounce2.h>
 #include <Wire.h>
 
-// Stuff for persistent memory (EEPROM) to store temperature values
+// Stuff for persistent memory to store temperature values
 #include <EEPROM.h>
 
 // Pin locations and stuff
-const int upPin = 2; //red
-const int downPin = 3; //blue
-const int selectPin = 4; //green
-const int backPin = 5; //yellow
+const uint8_t upPin = 2; //red
+const uint8_t downPin = 3; //blue
+const uint8_t selectPin = 4; //green
+const uint8_t backPin = 5; //yellow
 
 // setup for display
 #define disp_address (0x3C)
@@ -44,19 +44,22 @@ Bounce backButton = Bounce();
 const unsigned long intervalMs = 5;
 
 // setup for EEPROM values
-#define FLAG_ADDRESS 0
-#define INIT_FLAG 0xAA
+const uint8_t FLAG_ADDRESS = 0;
+const uint8_t INIT_FLAG = 0xAA;
 
-// defaults and constants and stuff
-uint8_t currentTemp = 93; // test value, will be fed from TC
+// defaults and variables for temperature
 const uint8_t BREWTEMP = 93; // default
 const uint8_t STEAMTEMP = 155; // default
 uint8_t brewTemp, steamTemp;
 
+// defaults and variables for PID constants
 const uint8_t KP = 30; // default
 const uint8_t KI = 40; // default
 const uint8_t KD = 50; // default
 uint8_t kp, ki, kd;
+
+// variables for display and control
+uint8_t currentTemp = 93; // test value, will be fed from TC
 uint8_t valueShown;
 
 
@@ -105,8 +108,6 @@ void setup() {
   backButton.attach(backPin);
   backButton.interval(intervalMs);
 
-  // valueShown = brewTemp;
-  screen = HOME_SCREEN;
   homeDisplay();
 }
 
@@ -157,7 +158,7 @@ void steamDisplay() {
 void pidDisplay() {
   screen = PID_SCREEN;
   display.clearDisplay();
-  display.setTextSize(2);
+  display.setTextSize(3);
   display.setCursor(0,0);
   display.println("PID stuff");
   display.display();
@@ -165,9 +166,9 @@ void pidDisplay() {
 
 void checkButtons() {
 
-  // first, gotta check if you're exiting to home screen cuz its really simple
+  // Before we check the other buttons, gotta check if you're exiting to home screen
+  // this would trump any other buttons being pressed
   backButton.update();
-
   if (backButton.fell()) {
     homeDisplay();
     return;
@@ -177,62 +178,66 @@ void checkButtons() {
   upButton.update();
   downButton.update();
   selectButton.update();
-  
-  if(screen == HOME_SCREEN) {
-    if (upButton.fell()) {
-      valueShown = brewTemp;
-      brewDisplay();
-    }
-    else if (downButton.fell()) {
-      valueShown = steamTemp;
-      steamDisplay();
-    }
-    else if (selectButton.fell()) {
-      pidDisplay();
-    }
-  }
 
-  else if(screen == BREW_SCREEN) {
+  // switch case to handle different logic depending on what screen we are on
+  // if on home screen, then our 3 buttons go to other screens
+  // if on brew screen, then the buttons will change and select the brew temp
+  // if on steam screen, then the buttons will change and select the steam temp
+  // if on PID screen, then the buttons will change and select PID constants
+  switch (screen) {
+    case HOME_SCREEN:
+      if (upButton.fell()) {
+        valueShown = brewTemp;
+        brewDisplay();
+      }
+      else if (downButton.fell()) {
+        valueShown = steamTemp;
+        steamDisplay();
+      }
+      else if (selectButton.fell()) {
+        pidDisplay();
+      }
+      break;
     
-    if (upButton.fell()) {
-      valueShown++;
-    }
-    else if (downButton.fell()) {
-      valueShown--;
-    }
+    case BREW_SCREEN:
+      if (upButton.fell()) { 
+        valueShown++;
+      }
+      else if (downButton.fell()) {
+        valueShown--;
+      }
+      else if (selectButton.fell()) {
+        // save to EEPROM
+        brewTemp = valueShown;
+        EEPROM.write(1, brewTemp);
+        display.print("cool!");
+        display.display();
+        delay(500);
+      }
+      brewDisplay();
+      break;
 
-    else if (selectButton.fell()) {
-      // save to EEPROM
-      brewTemp = valueShown;
-      EEPROM.write(1, brewTemp);
-      display.print("cool!");
-      display.display();
-      delay(500);
-    }
-    brewDisplay();
+    case STEAM_SCREEN:
+      if (upButton.fell()) {
+        valueShown++;
+      }
+      else if (downButton.fell()) {
+        valueShown--;
+      }
+      else if (selectButton.fell()) {
+        // save to EEPROM
+        steamTemp = valueShown;
+        EEPROM.write(2, steamTemp);
+        display.print("cool!");
+        display.display();
+        delay(500);
+      }
+      steamDisplay();
+      break;
+
+    case PID_SCREEN:
+      break;
   }
-
-  else if (screen == STEAM_SCREEN) {
-    if (upButton.fell()) {
-      valueShown++;
-    }
-
-    else if (downButton.fell()) {
-      valueShown--;
-    }
-
-    else if (selectButton.fell()) {
-      // save to EEPROM
-      steamTemp = valueShown;
-      EEPROM.write(2, steamTemp);
-      display.print("cool!");
-      display.display();
-      delay(500);
-    }
-    steamDisplay();
-
-  }
-  
 }
 
 void loop() {
