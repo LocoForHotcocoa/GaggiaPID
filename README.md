@@ -1,13 +1,7 @@
 # GaggiaPID
-Open Source PID for Gaggia Classic and Classic Pro espresso machines
+PID for Gaggia Classic espresso machine
 
-As seen on https://www.reddit.com/r/gaggiaclassic/comments/kmm09a/diy_pid_for_my_gaggia_classic/
-
-The .ino file includes several libraries.  Please make sure you've downloaded them prior to uploading the code to your Arduino of choice.  This was built on an Adafruit Metro Mini, which is directly compatible with the Arduino Uno R3, but you can use any Arduino board as long as it has enough pins and it supports I2C.
-
-The code is reasonably well commented internally and variables are named such that it should be easy to find values you may need to change for your specific implementation, such as which pins have buttons assigned to them or the output pin for the SSR.
-
-This design is intended to be as simple as possible in terms of the installation, and requires minimal modification to the Gaggia machine.  You'll need the following parts, as well as basic soldering tools/skills and access to a 3D printer (if you choose to use the included .stl files)
+Forked and took inspiration from https://github.com/samrausch/gaggiaPID/.
 
 * Arduino board of your choice
 * MCP9600 thermocouple amp (https://www.adafruit.com/product/4101)
