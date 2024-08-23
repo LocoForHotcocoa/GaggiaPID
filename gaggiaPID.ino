@@ -33,13 +33,6 @@ Adafruit_MCP9601 mcp;
 #define OLED_RESET 4
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
-enum ScreenType {
-  HOME_SCREEN = 0,
-  BREW_SCREEN,
-  STEAM_SCREEN,
-  PID_SCREEN
-} screen;
-
 // setup for buttons
 Bounce upButton = Bounce();
 Bounce downButton = Bounce();
@@ -62,11 +55,19 @@ const uint8_t KI = 40; // default
 const uint8_t KD = 50; // default
 uint8_t kp, ki, kd;
 
-// variables for display and control
+// variables and enums for display and control
 float currentTemp; // will be fed from TC
+uint8_t targetTemp; // will be fed into PID algorithm
 uint8_t valueShown;
 uint16_t windowStartTime;
 uint16_t windowSize = 100;
+
+enum ScreenType {
+  HOME_SCREEN = 0,
+  BREW_SCREEN,
+  STEAM_SCREEN,
+  PID_SCREEN
+} screen;
 
 enum pidOptionEnum {
   KP_OPTION = 0,
@@ -116,7 +117,7 @@ void setup() {
   mcp.enable(true);
 
   display.display();
-  delay(4000);
+  delay(2000);
 
   pinMode(upPin, INPUT_PULLUP);
   pinMode(downPin, INPUT_PULLUP);
@@ -133,10 +134,9 @@ void setup() {
   backButton.interval(intervalMs);
 
   windowStartTime = millis();
-
   homeDisplay();
 }
-
+// this will be a cute little coffee mug with temperature on it!
 void homeDisplay() {
   screen = HOME_SCREEN;
   display.clearDisplay();
@@ -151,6 +151,7 @@ void homeDisplay() {
 
 void brewDisplay() {
   screen = BREW_SCREEN;
+  targetTemp = brewTemp;
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
@@ -167,6 +168,7 @@ void brewDisplay() {
 
 void steamDisplay() {
   screen = STEAM_SCREEN;
+  targetTemp = steamTemp;
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
@@ -242,9 +244,8 @@ void checkButtons() {
         valueShown--;
       }
       else if (selectButton.fell()) {
-        // save to EEPROM
         brewTemp = valueShown;
-        EEPROM.write(1, brewTemp);
+        EEPROM.write(1, brewTemp); // save to EEPROM
         display.print("cool!");
         display.display();
         delay(500);
@@ -260,9 +261,8 @@ void checkButtons() {
         valueShown--;
       }
       else if (selectButton.fell()) {
-        // save to EEPROM
         steamTemp = valueShown;
-        EEPROM.write(2, steamTemp);
+        EEPROM.write(2, steamTemp); // save to EEPROM
         display.print("cool!");
         display.display();
         delay(500);
@@ -274,36 +274,39 @@ void checkButtons() {
       if (upButton.fell()) {
         switch (pidOption) {
           case KP_OPTION: 
-            kp++; 
+            kp++;
+            EEPROM.write(3, kp);
             break;
           case KI_OPTION: 
-            ki++; 
+            ki++;
+            EEPROM.write(4, ki);
             break;
-          case KD_OPTION: 
+          case KD_OPTION:
             kd++;
+            EEPROM.write(5, kd);
         }
       }
       else if (downButton.fell()) {
         switch (pidOption) {
-          case KP_OPTION: kp--; break;
-          case KI_OPTION: ki--; break;
-          case KD_OPTION: kd--;
+          case KP_OPTION: 
+            kp--; 
+            EEPROM.write(3, kp);
+            break;
+          case KI_OPTION: 
+            ki--;
+            EEPROM.write(4, ki);
+            break;
+          case KD_OPTION: 
+            kd--;
+            EEPROM.write(5, kd);
         }
       }
-      // when we select a new PID control, it will save previous one to EEPROM
+      // when we press select, it goes to next PID variable
       else if (selectButton.fell()) {
         switch (pidOption) {
-            case KP_OPTION: // Switch to Ki setting
-              pidOption = KI_OPTION;
-              EEPROM.write(3, kp);
-              break;
-            case KI_OPTION: // Switch to Kd setting
-              pidOption = KD_OPTION;
-              EEPROM.write(4, ki);
-              break;
-            case KD_OPTION: // Switch to Kp setting
-              pidOption = KP_OPTION;
-              EEPROM.write(5, kd);
+            case KP_OPTION: pidOption = KI_OPTION; break; // Switch to Ki setting
+            case KI_OPTION: pidOption = KD_OPTION; break; // Switch to Kd setting
+            case KD_OPTION: pidOption = KP_OPTION;        // Switch to Kp setting
         }
       }
       pidDisplay();
