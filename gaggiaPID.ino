@@ -68,6 +68,11 @@ uint8_t valueShown;
 uint16_t windowStartTime;
 uint16_t windowSize = 100;
 
+enum pidOptionEnum {
+  KP_OPTION = 0,
+  KI_OPTION,
+  KD_OPTION
+} pidOption;
 
 
 void setup() {
@@ -179,9 +184,17 @@ void steamDisplay() {
 void pidDisplay() {
   screen = PID_SCREEN;
   display.clearDisplay();
-  display.setTextSize(3);
+  display.setTextSize(2);
   display.setCursor(0,0);
-  display.println("PID stuff");
+  display.println("   PID!");
+  display.print("kp  =  ");
+  display.println(kp);  
+  display.print("ki  =  ");
+  display.println(ki);  
+  display.print("kd  =  ");
+  display.println(kd);
+  display.setCursor(60, (pidOption+1)*16);
+  display.print(">");
   display.display();
 }
 
@@ -216,6 +229,7 @@ void checkButtons() {
         steamDisplay();
       }
       else if (selectButton.fell()) {
+        pidOption = KP_OPTION;
         pidDisplay();
       }
       break;
@@ -257,7 +271,42 @@ void checkButtons() {
       break;
 
     case PID_SCREEN:
-      break;
+      if (upButton.fell()) {
+        switch (pidOption) {
+          case KP_OPTION: 
+            kp++; 
+            break;
+          case KI_OPTION: 
+            ki++; 
+            break;
+          case KD_OPTION: 
+            kd++;
+        }
+      }
+      else if (downButton.fell()) {
+        switch (pidOption) {
+          case KP_OPTION: kp--; break;
+          case KI_OPTION: ki--; break;
+          case KD_OPTION: kd--;
+        }
+      }
+      // when we select a new PID control, it will save previous one to EEPROM
+      else if (selectButton.fell()) {
+        switch (pidOption) {
+            case KP_OPTION: // Switch to Ki setting
+              pidOption = KI_OPTION;
+              EEPROM.write(3, kp);
+              break;
+            case KI_OPTION: // Switch to Kd setting
+              pidOption = KD_OPTION;
+              EEPROM.write(4, ki);
+              break;
+            case KD_OPTION: // Switch to Kp setting
+              pidOption = KP_OPTION;
+              EEPROM.write(5, kd);
+        }
+      }
+      pidDisplay();
   }
 }
 
