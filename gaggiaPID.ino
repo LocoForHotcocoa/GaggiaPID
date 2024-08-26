@@ -321,6 +321,7 @@ void loop() {
   checkButtons();
 
   // update everything every 500 ms
+  // this is some goofy logic that I got from the PID_v2 arduino docs that's supposed to work with a digital output (instead of PWM). I hope it works!
   while ( millis() - windowStartTime > windowSize) {
     currentTemp = mcp.readThermocouple();
     myPID.Compute();
