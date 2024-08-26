@@ -20,6 +20,7 @@ const uint8_t upPin = 2; //red
 const uint8_t downPin = 3; //blue
 const uint8_t selectPin = 4; //green
 const uint8_t backPin = 5; //yellow
+const uint8_t relayPin = 6;
 
 // setup for MCP9601
 #define tc_address (0x67)
@@ -56,11 +57,15 @@ const uint8_t KD = 50; // default
 uint8_t kp, ki, kd;
 
 // variables and enums for display and control
-float currentTemp; // will be fed from TC
-uint8_t targetTemp; // will be fed into PID algorithm
-uint8_t valueShown;
-uint16_t windowStartTime;
-uint16_t windowSize = 100;
+double currentTemp;  // will be fed from TC
+double output;       // for PWM control
+uint8_t targetTemp;  // will be fed into PID algorithm
+double valueShown;
+uint32_t windowStartTime;
+uint8_t windowSize = 500; // 500 ms = 2 Hz PWM
+
+// setup for PID
+PID myPID(&currentTemp, &output, reinterpret_cast<double*>(&targetTemp), kp, ki, kd, DIRECT);
 
 enum ScreenType {
   HOME_SCREEN = 0,
@@ -100,8 +105,6 @@ void setup() {
   display.setCursor(0,0);
   display.setTextSize(2);
   display.setTextColor(WHITE);
-  display.println("hello");
-  display.println("fuck you");
   display.println("coffee <3");
 
   // starting the TCA
@@ -123,6 +126,7 @@ void setup() {
   pinMode(downPin, INPUT_PULLUP);
   pinMode(selectPin, INPUT_PULLUP);
   pinMode(backPin, INPUT_PULLUP);
+  pinMode(relayPin, OUTPUT);
 
   upButton.attach(upPin);
   upButton.interval(intervalMs);
@@ -132,6 +136,10 @@ void setup() {
   selectButton.interval(intervalMs);
   backButton.attach(backPin);
   backButton.interval(intervalMs);
+
+  myPID.SetMode(AUTOMATIC);
+  myPID.SetOutputLimits(0, 255);    // Output as PWM (0-255)
+  myPID.SetSampleTime(windowSize);  // 0.5-second sample time
 
   windowStartTime = millis();
   homeDisplay();
@@ -143,9 +151,8 @@ void homeDisplay() {
   display.setCursor(0,0);
   display.setTextSize(2);
   display.setTextColor(WHITE);
-  display.println("frick u");
-  display.println("dumb fuc");
-  display.println("cheeked up");
+  display.println("Hello :)");
+  display.println(currentTemp);
   display.display();
 }
 
@@ -155,10 +162,7 @@ void brewDisplay() {
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.println("Temp:     ");
-  display.setCursor(60,0);
-  display.println(currentTemp);
-
+  display.println("Temp:  " + String(currentTemp));
   display.println("   Brew:");
   display.print("      C");
   display.setCursor(30, display.getCursorY());
@@ -285,6 +289,7 @@ void checkButtons() {
             kd++;
             EEPROM.write(5, kd);
         }
+        myPID.SetTunings(kp, ki, kd);
       }
       else if (downButton.fell()) {
         switch (pidOption) {
@@ -300,6 +305,7 @@ void checkButtons() {
             kd--;
             EEPROM.write(5, kd);
         }
+        myPID.SetTunings(kp, ki, kd);
       }
       // when we press select, it goes to next PID variable
       else if (selectButton.fell()) {
@@ -315,8 +321,13 @@ void checkButtons() {
 
 void loop() {
   checkButtons();
-  // update current temp every 100 ms
+
+  // update everything every 500 ms
   if( millis() - windowStartTime > windowSize) {
     currentTemp = mcp.readThermocouple();
+
+    myPID.Compute();
+    analogWrite(relayPin, output);
+    windowStartTime += windowSize;
   }
 }
