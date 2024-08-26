@@ -60,7 +60,7 @@ uint8_t kp, ki, kd;
 double currentTemp;  // will be fed from TC
 double output;       // for PWM control
 uint8_t targetTemp;  // will be fed into PID algorithm
-double valueShown;
+//double valueShown;
 uint32_t windowStartTime;
 uint8_t windowSize = 500; // 500 ms = 2 Hz PWM
 
@@ -68,11 +68,10 @@ uint8_t windowSize = 500; // 500 ms = 2 Hz PWM
 PID myPID(&currentTemp, &output, reinterpret_cast<double*>(&targetTemp), kp, ki, kd, DIRECT);
 
 enum ScreenType {
-  HOME_SCREEN = 0,
-  BREW_SCREEN,
+  BREW_SCREEN = 0,
   STEAM_SCREEN,
   PID_SCREEN
-} screen;
+} screen, temporaryScreen;
 
 enum pidOptionEnum {
   KP_OPTION = 0,
@@ -138,52 +137,46 @@ void setup() {
   backButton.interval(intervalMs);
 
   myPID.SetMode(AUTOMATIC);
-  myPID.SetOutputLimits(0, 255);    // Output as PWM (0-255)
-  myPID.SetSampleTime(windowSize);  // 0.5-second sample time
+  myPID.SetOutputLimits(0, windowSize);  // tell the PID to range between 0 and the full window size
 
   windowStartTime = millis();
-  homeDisplay();
+  brewDisplay();
+  temporaryScreen = screen;
 }
-// this will be a cute little coffee mug with temperature on it!
-void homeDisplay() {
-  screen = HOME_SCREEN;
-  display.clearDisplay();
-  display.setCursor(0,0);
-  display.setTextSize(2);
-  display.setTextColor(WHITE);
-  display.println("Hello :)");
-  display.println(currentTemp);
-  display.display();
-}
+// void homeDisplay() {
+//   screen = HOME_SCREEN;
+//   display.clearDisplay();
+//   display.setCursor(0,0);
+//   display.setTextSize(2);
+//   display.setTextColor(WHITE);
+//   display.println("Hello :)");
+//   display.println(currentTemp);
+//   display.display();
+// }
 
+// this will be a cute little coffee mug with temperature on it!
 void brewDisplay() {
   screen = BREW_SCREEN;
   targetTemp = brewTemp;
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.println("Temp:  " + String(currentTemp));
+  display.println("Temp: " + String(currentTemp));
   display.println("   Brew:");
-  display.print("      C");
-  display.setCursor(30, display.getCursorY());
-  display.println(valueShown);
+  display.println("  " + String(brewTemp) + " C");
   display.display();
 }
 
+// this will be a cute little steam wand!
 void steamDisplay() {
   screen = STEAM_SCREEN;
   targetTemp = steamTemp;
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.println("Temp:    C");
-  display.setCursor(70,0);
-  display.println(currentTemp);
-
+  display.println("Temp: " + String(currentTemp));
   display.println("  Steam:");
-  display.print("      C");
-  display.setCursor(30, display.getCursorY());
-  display.println(valueShown);
+  display.println("  " + String(steamTemp) + " C");
   display.display();
 }
 
@@ -192,13 +185,10 @@ void pidDisplay() {
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.println("   PID!");
-  display.print("kp  =  ");
-  display.println(kp);  
-  display.print("ki  =  ");
-  display.println(ki);  
-  display.print("kd  =  ");
-  display.println(kd);
+  display.println("   PID");
+  display.println("kp  =  " + String(kp));
+  display.println("ki  =  " + String(ki));
+  display.println("kd  =  " + String(kd));
   display.setCursor(60, (pidOption+1)*16);
   display.print(">");
   display.display();
@@ -206,11 +196,20 @@ void pidDisplay() {
 
 void checkButtons() {
 
-  // Before we check the other buttons, gotta check if you're exiting to home screen
+  // Before we check the other buttons, gotta check if you're going into / out of PID settings
   // this would trump any other buttons being pressed
   backButton.update();
   if (backButton.fell()) {
-    homeDisplay();
+    if (screen == PID_SCREEN && temporaryScreen == BREW_SCREEN) {
+      brewDisplay();
+    }
+    else if (screen == PID_SCREEN && temporaryScreen == STEAM_SCREEN) {
+      steamDisplay();
+    }
+    else {
+      temporaryScreen = screen;
+      pidDisplay();
+    }
     return;
   }
 
@@ -225,53 +224,52 @@ void checkButtons() {
   // if on steam screen, then the buttons will change and select the steam temp
   // if on PID screen, then the buttons will change and select PID constants
   switch (screen) {
-    case HOME_SCREEN:
-      if (upButton.fell()) {
-        valueShown = brewTemp;
-        brewDisplay();
-      }
-      else if (downButton.fell()) {
-        valueShown = steamTemp;
-        steamDisplay();
-      }
-      else if (selectButton.fell()) {
-        pidOption = KP_OPTION;
-        pidDisplay();
-      }
-      break;
+    // case HOME_SCREEN:
+    //   if (upButton.fell()) {
+    //     valueShown = brewTemp;
+    //     brewDisplay();
+    //   }
+    //   else if (downButton.fell()) {
+    //     valueShown = steamTemp;
+    //     steamDisplay();
+    //   }
+    //   else if (selectButton.fell()) {
+    //     pidOption = KP_OPTION;
+    //     pidDisplay();
+    //   }
+    //   break;
     
     case BREW_SCREEN:
       if (upButton.fell()) { 
-        valueShown++;
+        brewTemp++;
+        EEPROM.write(1, brewTemp); // save to EEPROM
+        brewDisplay();
       }
       else if (downButton.fell()) {
-        valueShown--;
+        brewTemp--;
+        EEPROM.write(1, brewTemp); // save to EEPROM
+        brewDisplay();
+
       }
       else if (selectButton.fell()) {
-        brewTemp = valueShown;
-        EEPROM.write(1, brewTemp); // save to EEPROM
-        display.print("cool!");
-        display.display();
-        delay(500);
+        steamDisplay();
       }
-      brewDisplay();
       break;
 
     case STEAM_SCREEN:
       if (upButton.fell()) {
-        valueShown++;
+        steamTemp++;
+        EEPROM.write(2, steamTemp); // save to EEPROM
+        steamDisplay();
       }
       else if (downButton.fell()) {
-        valueShown--;
+        steamTemp--;
+        EEPROM.write(2, steamTemp); // save to EEPROM
+        steamDisplay();
       }
       else if (selectButton.fell()) {
-        steamTemp = valueShown;
-        EEPROM.write(2, steamTemp); // save to EEPROM
-        display.print("cool!");
-        display.display();
-        delay(500);
+        brewDisplay();
       }
-      steamDisplay();
       break;
 
     case PID_SCREEN:
@@ -323,11 +321,14 @@ void loop() {
   checkButtons();
 
   // update everything every 500 ms
-  if( millis() - windowStartTime > windowSize) {
+  while ( millis() - windowStartTime > windowSize) {
     currentTemp = mcp.readThermocouple();
-
     myPID.Compute();
-    analogWrite(relayPin, output);
     windowStartTime += windowSize;
+
+    if (output < millis() - windowStartTime)
+      digitalWrite(relayPin, HIGH);
+    else
+      digitalWrite(relayPin, LOW);
   }
 }
