@@ -59,20 +59,22 @@ uint8_t kp, ki, kd;
 // variables and enums for display and control
 double currentTemp;  // will be fed from TC
 double output;       // for PWM control
-uint8_t targetTemp;  // will be fed into PID algorithm
+double targetTemp;  // will be fed into PID algorithm
 //double valueShown;
 uint32_t windowStartTime;
 uint8_t windowSize = 500; // 500 ms = 2 Hz PWM
 
 // setup for PID
-PID myPID(&currentTemp, &output, reinterpret_cast<double*>(&targetTemp), kp, ki, kd, DIRECT);
+PID myPID(&currentTemp, &output, &targetTemp, kp, ki, kd, DIRECT);
 
+// used to keep track of current screen
 enum ScreenType {
   BREW_SCREEN = 0,
   STEAM_SCREEN,
   PID_SCREEN
 } screen, temporaryScreen;
 
+// used to keep track of current PID option on PID screen
 enum pidOptionEnum {
   KP_OPTION = 0,
   KI_OPTION,
@@ -82,8 +84,9 @@ enum pidOptionEnum {
 
 void setup() {
   // put your setup code here, to run once:
-
   // Check if EEPROM is initialized
+  // I use a initialization flag at 0x0 to assure that the EEPROM has saved values
+  // if flag address is empty, then we need to use the defaults and save them to EEPROM (defined above)
   if (EEPROM.read(FLAG_ADDRESS) != INIT_FLAG) {
     // EEPROM is not initialized, so write the default values
     EEPROM.write(1, BREWTEMP);
@@ -93,12 +96,15 @@ void setup() {
     EEPROM.write(5, KD);
     EEPROM.write(FLAG_ADDRESS, INIT_FLAG);  // Set the flag to indicate initialization
   }
+
+  // Now that we are sure EEPROM has values, we read the values from EEPROM into our program
   brewTemp = EEPROM.read(1);
   steamTemp = EEPROM.read(2);
   kp = EEPROM.read(3);
   ki = EEPROM.read(4);
   kd = EEPROM.read(5);
 
+  // initializing display, show little splash screen
   display.begin(SSD1306_SWITCHCAPVCC, disp_address);
   display.clearDisplay();
   display.setCursor(0,0);
@@ -107,6 +113,7 @@ void setup() {
   display.println("coffee <3");
 
   // starting the TCA
+  // if mcp isn't working, then the arduino must be restarted
   if (! mcp.begin(tc_address)) {
     display.clearDisplay();
     display.println("TC ERROR");
@@ -121,6 +128,7 @@ void setup() {
   display.display();
   delay(2000);
 
+  // setting up pins and buttons
   pinMode(upPin, INPUT_PULLUP);
   pinMode(downPin, INPUT_PULLUP);
   pinMode(selectPin, INPUT_PULLUP);
@@ -136,9 +144,11 @@ void setup() {
   backButton.attach(backPin);
   backButton.interval(intervalMs);
 
+  // setting up more PID stuff
   myPID.SetMode(AUTOMATIC);
   myPID.SetOutputLimits(0, windowSize);  // tell the PID to range between 0 and the full window size
 
+  // getting current time
   windowStartTime = millis();
   brewDisplay();
   temporaryScreen = screen;
@@ -219,26 +229,11 @@ void checkButtons() {
   selectButton.update();
 
   // switch case to handle different logic depending on what screen we are on
-  // if on home screen, then our 3 buttons go to other screens
-  // if on brew screen, then the buttons will change and select the brew temp
-  // if on steam screen, then the buttons will change and select the steam temp
+  // if on brew screen, then the buttons will change and select the brew temp or go to steam screen
+  // if on steam screen, then the buttons will change and select the steam temp or go to brew screen
   // if on PID screen, then the buttons will change and select PID constants
   switch (screen) {
-    // case HOME_SCREEN:
-    //   if (upButton.fell()) {
-    //     valueShown = brewTemp;
-    //     brewDisplay();
-    //   }
-    //   else if (downButton.fell()) {
-    //     valueShown = steamTemp;
-    //     steamDisplay();
-    //   }
-    //   else if (selectButton.fell()) {
-    //     pidOption = KP_OPTION;
-    //     pidDisplay();
-    //   }
-    //   break;
-    
+
     case BREW_SCREEN:
       if (upButton.fell()) { 
         brewTemp++;
