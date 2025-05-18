@@ -1,12 +1,12 @@
 // Stuff for display
-#include <Adafruit_GFX.h>
+#include <Adafruit_GFX.h> 
 #include <gfxfont.h>
 #include <Adafruit_SSD1306.h>
 #include <splash.h>
 
 // Stuff for Thermocouple
 #include <Adafruit_MCP9601.h>
-#include <PID_v2.h>
+// #include <PID_v2.h>
 
 // Stuff for communication
 #include <Bounce2.h>
@@ -39,11 +39,17 @@ Bounce upButton = Bounce();
 Bounce downButton = Bounce();
 Bounce selectButton = Bounce();
 Bounce backButton = Bounce();
-const unsigned long intervalMs = 5;
+const unsigned long intervalMs = 5; //sample rate
 
 // setup for EEPROM values
-const uint8_t FLAG_ADDRESS = 0;
-const uint8_t INIT_FLAG = 0xAA;
+const int FLAG_ADDR = 0x0;
+const uint8_t INIT_FLAG = 170;
+
+const int BREW_ADDR = 0x1;
+const int STEAM_ADDR = 0x2;
+const int KP_ADDR = 0x3;
+const int KI_ADDR = 0x4;
+const int KD_ADDR = 0x5;
 
 // defaults and variables for temperature
 const uint8_t BREWTEMP = 93; // default
@@ -65,13 +71,14 @@ uint32_t windowStartTime;
 uint8_t windowSize = 500; // 500 ms = 2 Hz PWM
 
 // setup for PID
-PID myPID(&currentTemp, &output, &targetTemp, kp, ki, kd, DIRECT);
+// PID myPID(&currentTemp, &output, &targetTemp, kp, ki, kd, DIRECT);
 
 // used to keep track of current screen
 enum ScreenType {
   BREW_SCREEN = 0,
   STEAM_SCREEN,
-  PID_SCREEN
+  PID_SCREEN,
+  TEMP_SCREEN
 } screen, temporaryScreen;
 
 // used to keep track of current PID option on PID screen
@@ -81,28 +88,34 @@ enum pidOptionEnum {
   KD_OPTION
 } pidOption;
 
+enum tempOptionEnum{
+  BREW_OPTION = 0,
+  STEAM_OPTION
+} tempOption;
+
+
 
 void setup() {
   // put your setup code here, to run once:
   // Check if EEPROM is initialized
   // I use a initialization flag at 0x0 to assure that the EEPROM has saved values
   // if flag address is empty, then we need to use the defaults and save them to EEPROM (defined above)
-  if (EEPROM.read(FLAG_ADDRESS) != INIT_FLAG) {
+  if (EEPROM.read(FLAG_ADDR) != INIT_FLAG) {
     // EEPROM is not initialized, so write the default values
-    EEPROM.write(1, BREWTEMP);
-    EEPROM.write(2, STEAMTEMP);
-    EEPROM.write(3, KP);
-    EEPROM.write(4, KI);
-    EEPROM.write(5, KD);
-    EEPROM.write(FLAG_ADDRESS, INIT_FLAG);  // Set the flag to indicate initialization
+    EEPROM.write(BREW_ADDR, BREWTEMP);
+    EEPROM.write(STEAM_ADDR, STEAMTEMP);
+    EEPROM.write(KP_ADDR, KP);
+    EEPROM.write(KI_ADDR, KI);
+    EEPROM.write(KD_ADDR, KD);
+    EEPROM.write(FLAG_ADDR, INIT_FLAG);  // Set the flag to indicate initialization
   }
 
-  // Now that we are sure EEPROM has values, we read the values from EEPROM into our program
-  brewTemp = EEPROM.read(1);
-  steamTemp = EEPROM.read(2);
-  kp = EEPROM.read(3);
-  ki = EEPROM.read(4);
-  kd = EEPROM.read(5);
+  // Now that we are sure EEPROM has pid values, we read the values from EEPROM into our program
+  brewTemp = EEPROM.read(BREW_ADDR);
+  steamTemp = EEPROM.read(STEAM_ADDR);
+  kp = EEPROM.read(KP_ADDR);
+  ki = EEPROM.read(KI_ADDR);
+  kd = EEPROM.read(KD_ADDR);
 
   // initializing display, show little splash screen
   display.begin(SSD1306_SWITCHCAPVCC, disp_address);
@@ -110,7 +123,7 @@ void setup() {
   display.setCursor(0,0);
   display.setTextSize(2);
   display.setTextColor(WHITE);
-  display.println("coffee <3");
+  display.println("coffee <3");//cute mug
 
   // starting the TCA
   // if mcp isn't working, then the arduino must be restarted
@@ -135,6 +148,7 @@ void setup() {
   pinMode(backPin, INPUT_PULLUP);
   pinMode(relayPin, OUTPUT);
 
+  //bounce button stuff
   upButton.attach(upPin);
   upButton.interval(intervalMs);
   downButton.attach(downPin);
@@ -145,8 +159,8 @@ void setup() {
   backButton.interval(intervalMs);
 
   // setting up more PID stuff
-  myPID.SetMode(AUTOMATIC);
-  myPID.SetOutputLimits(0, windowSize);  // tell the PID to range between 0 and the full window size
+//   myPID.SetMode(AUTOMATIC);
+//   myPID.SetOutputLimits(0, windowSize);  // tell the PID to range between 0 and the full window size
 
   // getting current time
   windowStartTime = millis();
@@ -171,9 +185,7 @@ void brewDisplay() {
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.println("Temp: " + String(currentTemp));
-  display.println("   Brew:");
-  display.println("  " + String(brewTemp) + " C");
+  display.println(String(currentTemp) + "->" + String(brewTemp));
   display.display();
 }
 
@@ -184,9 +196,7 @@ void steamDisplay() {
   display.clearDisplay();
   display.setTextSize(2);
   display.setCursor(0,0);
-  display.println("Temp: " + String(currentTemp));
-  display.println("  Steam:");
-  display.println("  " + String(steamTemp) + " C");
+  display.println("Temp: " + String(currentTemp) + "->" + String(steamTemp));
   display.display();
 }
 
@@ -204,26 +214,26 @@ void pidDisplay() {
   display.display();
 }
 
+void tempDisplay(){
+  screen = TEMP_SCREEN;
+  display.clearDisplay();
+  display.setTextSize(2);
+  display.setCursor(0,0);
+  display.println("   Temperature");
+  display.println("Brew  =  " + String(brewTemp));
+  display.println("Steam =  " + String(steamTemp));
+  display.setCursor(84, (tempOption+1)*16);
+  display.print(">");
+  display.display();
+}
+
+// void timerDisplay(){
+
+// }
+
 void checkButtons() {
 
-  // Before we check the other buttons, gotta check if you're going into / out of PID settings
-  // this would trump any other buttons being pressed
   backButton.update();
-  if (backButton.fell()) {
-    if (screen == PID_SCREEN && temporaryScreen == BREW_SCREEN) {
-      brewDisplay();
-    }
-    else if (screen == PID_SCREEN && temporaryScreen == STEAM_SCREEN) {
-      steamDisplay();
-    }
-    else {
-      temporaryScreen = screen;
-      pidDisplay();
-    }
-    return;
-  }
-
-  // not going to main menu? then get latest updates on other button info!
   upButton.update();
   downButton.update();
   selectButton.update();
@@ -235,80 +245,100 @@ void checkButtons() {
   switch (screen) {
 
     case BREW_SCREEN:
-      if (upButton.fell()) { 
-        brewTemp++;
-        EEPROM.write(1, brewTemp); // save to EEPROM
-        brewDisplay();
-      }
-      else if (downButton.fell()) {
-        brewTemp--;
-        EEPROM.write(1, brewTemp); // save to EEPROM
-        brewDisplay();
-
-      }
-      else if (selectButton.fell()) {
-        steamDisplay();
-      }
+      if (selectButton.fell())  tempDisplay();
+      else if (backButton.fell()) pidDisplay();
       break;
 
     case STEAM_SCREEN:
-      if (upButton.fell()) {
-        steamTemp++;
-        EEPROM.write(2, steamTemp); // save to EEPROM
-        steamDisplay();
-      }
-      else if (downButton.fell()) {
-        steamTemp--;
-        EEPROM.write(2, steamTemp); // save to EEPROM
-        steamDisplay();
-      }
-      else if (selectButton.fell()) {
-        brewDisplay();
-      }
+      if (selectButton.fell())  tempDisplay();
+      else if (backButton.fell()) pidDisplay();
       break;
 
+    case TEMP_SCREEN:
+      if (selectButton.fell()) {
+        switch (tempOption) {
+            case BREW_OPTION: tempOption = STEAM_OPTION; break; // Switch to STEAM
+            case STEAM_OPTION: tempOption = BREW_OPTION; //Switch to brew
+        }
+        tempDisplay();
+      }
+      else if (upButton.fell()) {
+        switch (tempOption) {
+          case BREW_OPTION: 
+            brewTemp++;
+            EEPROM.write(BREW_ADDR, brewTemp);
+            break;
+          case STEAM_OPTION: 
+            steamTemp++;
+            EEPROM.write(STEAM_ADDR, steamTemp);
+            break;
+          } 
+          tempDisplay();
+        }
+        else if (downButton.fell()) {
+          switch (tempOption) {
+            case BREW_OPTION: 
+              brewTemp--;
+              EEPROM.write(BREW_ADDR, brewTemp);
+              break;
+            case STEAM_OPTION: 
+              steamTemp--;
+              EEPROM.write(STEAM_ADDR, steamTemp);
+              break;
+          }
+          tempDisplay();
+        }
+        else if (backButton.fell()) {
+          brewDisplay();
+        }
+
     case PID_SCREEN:
-      if (upButton.fell()) {
-        switch (pidOption) {
-          case KP_OPTION: 
-            kp++;
-            EEPROM.write(3, kp);
-            break;
-          case KI_OPTION: 
-            ki++;
-            EEPROM.write(4, ki);
-            break;
-          case KD_OPTION:
-            kd++;
-            EEPROM.write(5, kd);
-        }
-        myPID.SetTunings(kp, ki, kd);
-      }
-      else if (downButton.fell()) {
-        switch (pidOption) {
-          case KP_OPTION: 
-            kp--; 
-            EEPROM.write(3, kp);
-            break;
-          case KI_OPTION: 
-            ki--;
-            EEPROM.write(4, ki);
-            break;
-          case KD_OPTION: 
-            kd--;
-            EEPROM.write(5, kd);
-        }
-        myPID.SetTunings(kp, ki, kd);
-      }
       // when we press select, it goes to next PID variable
-      else if (selectButton.fell()) {
+      if (selectButton.fell()) {
         switch (pidOption) {
             case KP_OPTION: pidOption = KI_OPTION; break; // Switch to Ki setting
             case KI_OPTION: pidOption = KD_OPTION; break; // Switch to Kd setting
             case KD_OPTION: pidOption = KP_OPTION;        // Switch to Kp setting
         }
+        pidDisplay();
       }
-      pidDisplay();
+      else if (upButton.fell()) {
+        switch (pidOption) {
+          case KP_OPTION: 
+            kp++;
+            EEPROM.write(KP_ADDR, kp);
+            break;
+          case KI_OPTION: 
+            ki++;
+            EEPROM.write(KI_ADDR, ki);
+            break;
+          case KD_OPTION:
+            kd++;
+            EEPROM.write(KD_ADDR, kd);
+        }
+        // myPID.SetTunings(kp, ki, kd);
+        pidDisplay();
+      }
+      else if (downButton.fell()) {
+        switch (pidOption) {
+          case KP_OPTION: 
+            kp--; 
+            EEPROM.write(KP_ADDR, kp);
+            break;
+          case KI_OPTION: 
+            ki--;
+            EEPROM.write(KI_ADDR, ki);
+            break;
+          case KD_OPTION: 
+            kd--;
+            EEPROM.write(KD_ADDR, kd);
+        }
+        // myPID.SetTunings(kp, ki, kd);
+        pidDisplay();
+      }
+      else if (backButton.fell()) {
+        brewDisplay();
+      }
   }
 }
 
@@ -317,9 +347,9 @@ void loop() {
 
   // update everything every 500 ms
   // this is some goofy logic that I got from the PID_v2 arduino docs that's supposed to work with a digital output (instead of PWM). I hope it works!
-  while ( millis() - windowStartTime > windowSize) {
+  if ( millis() - windowStartTime > windowSize) {
     currentTemp = mcp.readThermocouple();
-    myPID.Compute();
+    // myPID.Compute();
     windowStartTime += windowSize;
 
     if (output < millis() - windowStartTime)
