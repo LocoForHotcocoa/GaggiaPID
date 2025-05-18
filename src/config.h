@@ -1,12 +1,6 @@
 // config.h
 #pragma once
 #include <stdint.h>
-#include <Wire.h>
-#include <Adafruit_GFX.h>
-#include <Adafruit_SSD1306.h>
-#include <Bounce2.h>
-#include <EEPROM.h>
-#include <Adafruit_MCP9601.h>
 
 // #include <PID_v1_bc.h>
 
