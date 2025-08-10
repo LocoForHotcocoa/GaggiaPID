@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include <Arduino.h>
+#include <stdint.h>
 #include <Bounce2.h>
 
 class ButtonHandler {
@@ -19,18 +19,14 @@ public:
     };
 
     ButtonHandler(uint8_t upPin, uint8_t downPin, 
-                  uint8_t selectPin, uint8_t backPin);
-
-    void begin(uint16_t debounce_ms = DEBOUNCE_MS);
+                  uint8_t selectPin, uint8_t backPin,
+                  uint16_t debounce_ms = DEBOUNCE_MS);
     void update();
     Button getPressed();
     // bool longPress(Button b);
 private:
-    struct Btn {
-        Bounce bounce;
-        uint8_t pin;
-    } m_buttons[BUTTON_COUNT];
-
-    static constexpr uint32_t DEBOUNCE_MS   = 50;
+    
+    Bounce m_buttons[BUTTON_COUNT];
+    static constexpr uint32_t DEBOUNCE_MS = 50;
     // static constexpr uint32_t LONGPRESS_MS  = 1000;
 };

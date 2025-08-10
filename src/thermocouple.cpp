@@ -2,7 +2,7 @@
 
 #include "thermocouple.h"
 
-Thermocouple::Thermocouple() : m_mcp() {}
+Thermocouple::Thermocouple() = default;
 
 bool Thermocouple::begin(TwoWire &wire, 
                          uint8_t addr, 
