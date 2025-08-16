@@ -1,7 +1,7 @@
 #include "buttonHandler.h"
 
 ButtonHandler::ButtonHandler(uint8_t upPin, uint8_t downPin, 
-                             uint8_t selectPin, uint8_t backPin
+                             uint8_t selectPin, uint8_t backPin,
                              uint16_t bounce_ms) {
 
     m_buttons[UP].attach(upPin, INPUT_PULLUP);
@@ -10,7 +10,7 @@ ButtonHandler::ButtonHandler(uint8_t upPin, uint8_t downPin,
     m_buttons[BACK].attach(backPin, INPUT_PULLUP);
 
     for(auto& btn : m_buttons) {
-        btn.interval(bounce_ms)
+        btn.interval(bounce_ms);
     }
 }
 

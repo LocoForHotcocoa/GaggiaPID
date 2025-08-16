@@ -1,360 +1,116 @@
-// Stuff for display
-#include <Adafruit_GFX.h> 
-#include <gfxfont.h>
-#include <Adafruit_SSD1306.h>
-#include <splash.h>
+#include "gaggiaPID.h"
 
-// Stuff for Thermocouple
-#include <Adafruit_MCP9601.h>
-// #include <PID_v2.h>
+GaggiaPID::GaggiaPID(uint8_t tempSwitchPin)
+    : m_switchPin(tempSwitchPin) {
+        pinMode(m_switchPin, INPUT_PULLUP);
+    }
 
-// Stuff for communication
-#include <Bounce2.h>
-#include <Wire.h>
+void GaggiaPID::begin() {
 
-// Stuff for persistent memory to store temperature values
-#include <EEPROM.h>
+    m_display.begin();
 
-// Pin locations and stuff
-const uint8_t upPin = 2; //red
-const uint8_t downPin = 3; //blue
-const uint8_t selectPin = 4; //green
-const uint8_t backPin = 5; //yellow
-const uint8_t relayPin = 6;
+    if (! m_thermocouple.begin()) {
+        m_display.errorDisplay((char*)"TC ERROR");
+        while(1);
+    }
 
-// setup for MCP9601
-#define tc_address (0x67)
-Adafruit_MCP9601 mcp;
+    char* initMsg;
+    if(! m_eeprom.readSettings()) {
+        initMsg = (char*)"EEPROM ERR: loading in defaults";
+    }
+    else {
+        initMsg = (char*)"Coffee <3";
+    }
+    
 
-// setup for display
-#define disp_address (0x3C)
+    brewTemp = m_eeprom.settings.brewTemp;
+    steamTemp = m_eeprom.settings.steamTemp;
+    kp = m_eeprom.settings.kp;
+    ki = m_eeprom.settings.ki;
+    kd = m_eeprom.settings.kd;
 
-#define SCREEN_WIDTH 128 // OLED display width, in pixels
-#define SCREEN_HEIGHT 64 // OLED display height, in pixels
-#define OLED_RESET 4
-Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+    if (! m_pid.begin(kp, ki, kd)) {
+        m_display.errorDisplay((char*)"PID ERR");
+        while(1);
+    }
 
-// setup for buttons
-Bounce upButton = Bounce();
-Bounce downButton = Bounce();
-Bounce selectButton = Bounce();
-Bounce backButton = Bounce();
-const unsigned long intervalMs = 5; //sample rate
+    currentTemp = m_thermocouple.readCelsius();
 
-// setup for EEPROM values
-const int FLAG_ADDR = 0x0;
-const uint8_t INIT_FLAG = 170;
+    m_display.initDisplay(initMsg);
+    delay(1000);
 
-const int BREW_ADDR = 0x1;
-const int STEAM_ADDR = 0x2;
-const int KP_ADDR = 0x3;
-const int KI_ADDR = 0x4;
-const int KD_ADDR = 0x5;
-
-// defaults and variables for temperature
-const uint8_t BREWTEMP = 93; // default
-const uint8_t STEAMTEMP = 155; // default
-uint8_t brewTemp, steamTemp;
-
-// defaults and variables for PID constants
-const uint8_t KP = 30; // default
-const uint8_t KI = 40; // default
-const uint8_t KD = 50; // default
-uint8_t kp, ki, kd;
-
-// variables and enums for display and control
-double currentTemp;  // will be fed from TC
-double output;       // for PWM control
-double targetTemp;  // will be fed into PID algorithm
-//double valueShown;
-uint32_t windowStartTime;
-uint8_t windowSize = 500; // 500 ms = 2 Hz PWM
-
-// setup for PID
-// PID myPID(&currentTemp, &output, &targetTemp, kp, ki, kd, DIRECT);
-
-// used to keep track of current screen
-enum ScreenType {
-  BREW_SCREEN = 0,
-  STEAM_SCREEN,
-  PID_SCREEN,
-  TEMP_SCREEN
-} screen, temporaryScreen;
-
-// used to keep track of current PID option on PID screen
-enum pidOptionEnum {
-  KP_OPTION = 0,
-  KI_OPTION,
-  KD_OPTION
-} pidOption;
-
-enum tempOptionEnum{
-  BREW_OPTION = 0,
-  STEAM_OPTION
-} tempOption;
-
-
-
-void setup() {
-  // put your setup code here, to run once:
-  // Check if EEPROM is initialized
-  // I use a initialization flag at 0x0 to assure that the EEPROM has saved values
-  // if flag address is empty, then we need to use the defaults and save them to EEPROM (defined above)
-  if (EEPROM.read(FLAG_ADDR) != INIT_FLAG) {
-    // EEPROM is not initialized, so write the default values
-    EEPROM.write(BREW_ADDR, BREWTEMP);
-    EEPROM.write(STEAM_ADDR, STEAMTEMP);
-    EEPROM.write(KP_ADDR, KP);
-    EEPROM.write(KI_ADDR, KI);
-    EEPROM.write(KD_ADDR, KD);
-    EEPROM.write(FLAG_ADDR, INIT_FLAG);  // Set the flag to indicate initialization
-  }
-
-  // Now that we are sure EEPROM has pid values, we read the values from EEPROM into our program
-  brewTemp = EEPROM.read(BREW_ADDR);
-  steamTemp = EEPROM.read(STEAM_ADDR);
-  kp = EEPROM.read(KP_ADDR);
-  ki = EEPROM.read(KI_ADDR);
-  kd = EEPROM.read(KD_ADDR);
-
-  // initializing display, show little splash screen
-  display.begin(SSD1306_SWITCHCAPVCC, disp_address);
-  display.clearDisplay();
-  display.setCursor(0,0);
-  display.setTextSize(2);
-  display.setTextColor(WHITE);
-  display.println("coffee <3");//cute mug
-
-  // starting the TCA
-  // if mcp isn't working, then the arduino must be restarted
-  if (! mcp.begin(tc_address)) {
-    display.clearDisplay();
-    display.println("TC ERROR");
-    display.display();
-    while (1);
-  }
-  mcp.setADCresolution(MCP9600_ADCRESOLUTION_18);
-  mcp.setThermocoupleType(MCP9600_TYPE_K);
-  mcp.setFilterCoefficient(3);
-  mcp.enable(true);
-
-  display.display();
-  delay(2000);
-
-  // setting up pins and buttons
-  pinMode(upPin, INPUT_PULLUP);
-  pinMode(downPin, INPUT_PULLUP);
-  pinMode(selectPin, INPUT_PULLUP);
-  pinMode(backPin, INPUT_PULLUP);
-  pinMode(relayPin, OUTPUT);
-
-  //bounce button stuff
-  upButton.attach(upPin);
-  upButton.interval(intervalMs);
-  downButton.attach(downPin);
-  downButton.interval(intervalMs);
-  selectButton.attach(selectPin);
-  selectButton.interval(intervalMs);
-  backButton.attach(backPin);
-  backButton.interval(intervalMs);
-
-  // setting up more PID stuff
-//   myPID.SetMode(AUTOMATIC);
-//   myPID.SetOutputLimits(0, windowSize);  // tell the PID to range between 0 and the full window size
-
-  // getting current time
-  windowStartTime = millis();
-  brewDisplay();
-  temporaryScreen = screen;
-}
-// void homeDisplay() {
-//   screen = HOME_SCREEN;
-//   display.clearDisplay();
-//   display.setCursor(0,0);
-//   display.setTextSize(2);
-//   display.setTextColor(WHITE);
-//   display.println("Hello :)");
-//   display.println(currentTemp);
-//   display.display();
-// }
-
-// this will be a cute little coffee mug with temperature on it!
-void brewDisplay() {
-  screen = BREW_SCREEN;
-  targetTemp = brewTemp;
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0,0);
-  display.println(String(currentTemp) + "->" + String(brewTemp));
-  display.display();
+    m_pid.begin(kp, ki, kd);
+    m_display.brewDisplay(currentTemp, brewTemp);
 }
 
-// this will be a cute little steam wand!
-void steamDisplay() {
-  screen = STEAM_SCREEN;
-  targetTemp = steamTemp;
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0,0);
-  display.println("Temp: " + String(currentTemp) + "->" + String(steamTemp));
-  display.display();
+void GaggiaPID::menuLoop() {
+    m_buttons.update();
+    ButtonHandler::Button pressed = m_buttons.getPressed();
+
+    currentTemp = m_thermocouple.readCelsius();
+    if (checkMode() == BREW_MODE) 
+        ssr_duty = m_pid.update(brewTemp, currentTemp);
+    else 
+        ssr_duty = m_pid.update(steamTemp, currentTemp);
+    m_ssr.setDuty(ssr_duty);
+    m_ssr.update();
+    
+    switch (m_display.screen) {
+        case Display::BREW_SCREEN:
+        case Display::STEAM_SCREEN:
+            if (pressed == ButtonHandler::SELECT) // this takes priority over updating brew/steam display
+                m_display.settingsDisplay(brewTemp, steamTemp, kp, ki, kd);
+            // only select button is used currently (to go to settings)
+            else if (checkMode() == BREW_MODE)
+                m_display.brewDisplay(currentTemp, brewTemp);
+            else
+                m_display.steamDisplay(currentTemp, steamTemp);
+            break;
+        case Display::SETTINGS_SCREEN:
+            if (pressed == ButtonHandler::UP) {
+                switch (m_display.option) {
+                    case Display::BREW: brewTemp += 1.0; break;
+                    case Display::STEAM: steamTemp += 1.0; break;
+                    case Display::KP: kp += 1.0; break;
+                    case Display::KI: ki += 1.0; break;
+                    case Display::KD: kd += 1.0; break;
+                }
+                m_display.settingsDisplay(brewTemp, steamTemp, kp, ki, kd);
+
+            }
+            else if (pressed == ButtonHandler::DOWN) {
+                switch (m_display.option) {
+                    case Display::BREW: brewTemp -= 1.0; break;
+                    case Display::STEAM: steamTemp -= 1.0; break;
+                    case Display::KP: kp -= 1.0; break;
+                    case Display::KI: ki -= 1.0; break;
+                    case Display::KD: kd -= 1.0; break;
+                }
+                m_display.settingsDisplay(brewTemp, steamTemp, kp, ki, kd);
+            }
+            else if (pressed == ButtonHandler::SELECT) {
+                switch (m_display.option) {
+                    case Display::BREW: m_display.option = Display::STEAM; break;
+                    case Display::STEAM: m_display.option = Display::KP; break;
+                    case Display::KP: m_display.option = Display::KI; break;
+                    case Display::KI: m_display.option = Display::KD; break;
+                    case Display::KD: m_display.option = Display::BREW; break;
+                }
+                m_display.settingsDisplay(brewTemp, steamTemp, kp, ki, kd);
+
+            }
+            else if (pressed == ButtonHandler::BACK) {
+                // save settings and go back to brew / steam screen
+                m_eeprom.writeSettings(brewTemp, steamTemp, kp, ki, kd);
+                m_pid.begin(kp, ki, kd);
+                if (checkMode() == BREW_MODE)
+                    m_display.brewDisplay(currentTemp, brewTemp);
+                else
+                    m_display.steamDisplay(currentTemp, steamTemp);
+            }
+    }
 }
 
-void pidDisplay() {
-  screen = PID_SCREEN;
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0,0);
-  display.println("   PID");
-  display.println("kp  =  " + String(kp));
-  display.println("ki  =  " + String(ki));
-  display.println("kd  =  " + String(kd));
-  display.setCursor(60, (pidOption+1)*16);
-  display.print(">");
-  display.display();
-}
-
-void tempDisplay(){
-  screen = TEMP_SCREEN;
-  display.clearDisplay();
-  display.setTextSize(2);
-  display.setCursor(0,0);
-  display.println("   Temperature");
-  display.println("Brew  =  " + String(brewTemp));
-  display.println("Steam =  " + String(steamTemp));
-  display.setCursor(84, (tempOption+1)*16);
-  display.print(">");
-  display.display();
-}
-
-// void timerDisplay(){
-
-// }
-
-void checkButtons() {
-
-  backButton.update();
-  upButton.update();
-  downButton.update();
-  selectButton.update();
-
-  // switch case to handle different logic depending on what screen we are on
-  // if on brew screen, then the buttons will change and select the brew temp or go to steam screen
-  // if on steam screen, then the buttons will change and select the steam temp or go to brew screen
-  // if on PID screen, then the buttons will change and select PID constants
-  switch (screen) {
-
-    case BREW_SCREEN:
-      if (selectButton.fell())  tempDisplay();
-      else if (backButton.fell()) pidDisplay();
-      break;
-
-    case STEAM_SCREEN:
-      if (selectButton.fell())  tempDisplay();
-      else if (backButton.fell()) pidDisplay();
-      break;
-
-    case TEMP_SCREEN:
-      if (selectButton.fell()) {
-        switch (tempOption) {
-            case BREW_OPTION: tempOption = STEAM_OPTION; break; // Switch to STEAM
-            case STEAM_OPTION: tempOption = BREW_OPTION; //Switch to brew
-        }
-        tempDisplay();
-      }
-      else if (upButton.fell()) {
-        switch (tempOption) {
-          case BREW_OPTION: 
-            brewTemp++;
-            EEPROM.write(BREW_ADDR, brewTemp);
-            break;
-          case STEAM_OPTION: 
-            steamTemp++;
-            EEPROM.write(STEAM_ADDR, steamTemp);
-            break;
-          } 
-          tempDisplay();
-        }
-        else if (downButton.fell()) {
-          switch (tempOption) {
-            case BREW_OPTION: 
-              brewTemp--;
-              EEPROM.write(BREW_ADDR, brewTemp);
-              break;
-            case STEAM_OPTION: 
-              steamTemp--;
-              EEPROM.write(STEAM_ADDR, steamTemp);
-              break;
-          }
-          tempDisplay();
-        }
-        else if (backButton.fell()) {
-          brewDisplay();
-        }
-
-    case PID_SCREEN:
-      // when we press select, it goes to next PID variable
-      if (selectButton.fell()) {
-        switch (pidOption) {
-            case KP_OPTION: pidOption = KI_OPTION; break; // Switch to Ki setting
-            case KI_OPTION: pidOption = KD_OPTION; break; // Switch to Kd setting
-            case KD_OPTION: pidOption = KP_OPTION;        // Switch to Kp setting
-        }
-        pidDisplay();
-      }
-      else if (upButton.fell()) {
-        switch (pidOption) {
-          case KP_OPTION: 
-            kp++;
-            EEPROM.write(KP_ADDR, kp);
-            break;
-          case KI_OPTION: 
-            ki++;
-            EEPROM.write(KI_ADDR, ki);
-            break;
-          case KD_OPTION:
-            kd++;
-            EEPROM.write(KD_ADDR, kd);
-        }
-        // myPID.SetTunings(kp, ki, kd);
-        pidDisplay();
-      }
-      else if (downButton.fell()) {
-        switch (pidOption) {
-          case KP_OPTION: 
-            kp--; 
-            EEPROM.write(KP_ADDR, kp);
-            break;
-          case KI_OPTION: 
-            ki--;
-            EEPROM.write(KI_ADDR, ki);
-            break;
-          case KD_OPTION: 
-            kd--;
-            EEPROM.write(KD_ADDR, kd);
-        }
-        // myPID.SetTunings(kp, ki, kd);
-        pidDisplay();
-      }
-      else if (backButton.fell()) {
-        brewDisplay();
-      }
-  }
-}
-
-void loop() {
-  checkButtons();
-
-  // update everything every 500 ms
-  // this is some goofy logic that I got from the PID_v2 arduino docs that's supposed to work with a digital output (instead of PWM). I hope it works!
-  if ( millis() - windowStartTime > windowSize) {
-    currentTemp = mcp.readThermocouple();
-    // myPID.Compute();
-    windowStartTime += windowSize;
-
-    if (output < millis() - windowStartTime)
-      digitalWrite(relayPin, HIGH);
-    else
-      digitalWrite(relayPin, LOW);
-  }
+GaggiaPID::Mode GaggiaPID::checkMode() {
+    return digitalRead(m_switchPin) == HIGH ? BREW_MODE : STEAM_MODE;
 }

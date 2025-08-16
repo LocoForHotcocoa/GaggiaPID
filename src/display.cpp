@@ -12,11 +12,11 @@ bool Display::begin(uint8_t screenWidth, uint8_t screenHeight,
 }
 
 // this will be a cute little logo
-void Display::initDisplay() {
+void Display::initDisplay(char* msg) {
     m_display.clearDisplay();
     m_display.setTextSize(2);
     m_display.setCursor(0,0);
-    m_display.println("Coffee <3");
+    m_display.println(msg);
     m_display.display();
 }
 
@@ -47,7 +47,7 @@ void Display::steamDisplay(float& currentTemp, float& steamTemp) {
 }
 
 void Display::settingsDisplay(float& brewTemp, float& steamTemp,
-                              float& kp, float& ki, float& kd, uint8_t option) {
+                              float& kp, float& ki, float& kd) {
     m_display.clearDisplay();
     m_display.setTextSize(1);
     m_display.setCursor(0,0);
@@ -76,7 +76,7 @@ void Display::settingsDisplay(float& brewTemp, float& steamTemp,
     m_display.setCursor(30, (option+1)*8);
     m_display.print(">");
     m_display.display();
-    screen = PID_SCREEN;
+    screen = SETTINGS_SCREEN;
 }
 
 void Display::errorDisplay(char* msg)

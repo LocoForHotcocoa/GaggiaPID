@@ -10,25 +10,25 @@
 #include <stdint.h>
 
 
-enum Screen { BREW_SCREEN, STEAM_SCREEN, TEMP_SCREEN, PID_SCREEN };
 
 class Display {
 public:
+    enum Screen { BREW_SCREEN, STEAM_SCREEN, SETTINGS_SCREEN };
     enum Opt { BREW, STEAM, KP, KI, KD };
 
     Screen screen = BREW_SCREEN;
+    Opt option = BREW;
     Display();
     bool begin(uint8_t screenWidth = SCREEN_WIDTH, 
                uint8_t screenHeight = SCREEN_HEIGHT, 
                uint8_t reset = OLED_RESET, 
                uint8_t dispAddress = DISP_ADDRESS);
                
-    void initDisplay();
+    void initDisplay(char* msg = (char*)"Coffee <3");
     void brewDisplay(float& currentTemp, float& brewTemp);
     void steamDisplay(float& currentTemp, float& steamTemp);
     void settingsDisplay(float& brewTemp, float& steamTemp,
-                         float& kp, float& ki, float& kd, 
-                         uint8_t option = Opt::BREW);
+                         float& kp, float& ki, float& kd);
     void errorDisplay(char* msg);
 
     static constexpr uint8_t SCREEN_WIDTH  = 128;

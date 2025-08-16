@@ -4,9 +4,11 @@
 
 class PIDController {
 public:
-    PIDController(float kp, float ki, float kd, float dtSeconds);
-    float update(float setpoint, float measured);
+    PIDController();
+    bool begin(float& kp, float& ki, float& kd);
+    float update(float& setpoint, float& measured);
+    float kp, ki, kd;
 private:
-    float m_kp, m_ki, m_kd, m_dt;
     float m_integral, m_lastError;
+    static constexpr float m_dt = 0.1;
 };

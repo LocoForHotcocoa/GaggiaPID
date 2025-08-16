@@ -1,0 +1,37 @@
+#pragma once
+
+#include "ButtonHandler.h"
+#include "display.h"
+#include "PIDController.h"
+#include "SSR.h"
+#include "thermocouple.h"
+#include "eepromHandler.h"
+
+class GaggiaPID {
+public:
+    enum Mode {
+        BREW_MODE = 0,
+        STEAM_MODE
+    };
+
+    GaggiaPID(uint8_t tempSwitchPin = TEMP_SWITCH_PIN);
+    void begin();
+    void menuLoop();
+
+    float brewTemp;
+    float steamTemp;
+    float currentTemp;
+    float kp, ki, kd;
+    float ssr_duty;
+private:
+    Mode checkMode();
+    Display m_display;
+    ButtonHandler m_buttons;
+    Thermocouple m_thermocouple;
+    PIDController m_pid;
+    SSR m_ssr;
+    EEPROMHandler m_eeprom;
+
+    uint8_t m_switchPin;
+    static constexpr uint8_t TEMP_SWITCH_PIN = 7; 
+};
