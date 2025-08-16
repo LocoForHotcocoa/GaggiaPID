@@ -1,7 +1,8 @@
 #include "SSR.h"
 
-SSR::SSR(uint8_t pin) : m_pin(pin), m_duty(0), m_lastToggle(0) {
-    pinMode(pin, OUTPUT);
+SSR::SSR(uint8_t pin) : m_pin(pin), m_duty(0), m_windowStartTime(0), m_onTime(0) {
+    pinMode(m_pin, OUTPUT);
+    digitalWrite(m_pin, LOW); // Ensure SSR is off initially
 }
 
 void SSR::setDuty(float duty) {
@@ -9,11 +10,20 @@ void SSR::setDuty(float duty) {
 }
 
 void SSR::update() {
-    // NOTE: currently straight from chatgpt. i have no idea what this does
-    // simple bang-bang PWM or time-slice
     unsigned long now = millis();
-    unsigned long period = 1000; // 1s slicing
-    unsigned long onTime = (unsigned long)(period * m_duty);
-    if ((now % period) < onTime) digitalWrite(m_pin, HIGH);
-    else digitalWrite(m_pin, LOW);
+
+    // Check if we are at the start of a new time window
+    if (now - m_windowStartTime > m_windowSize) {
+        m_windowStartTime = now;
+        // Calculate the time the SSR should be on for this window
+        m_onTime = (unsigned long)(m_windowSize * m_duty);
+    }
+
+
+    // Turn the SSR on or off based on the time within the window
+    if (now - m_windowStartTime < m_onTime) {
+        digitalWrite(m_pin, HIGH);
+    } else {
+        digitalWrite(m_pin, LOW);
+    }
 }

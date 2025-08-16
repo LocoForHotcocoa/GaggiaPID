@@ -2,6 +2,8 @@
 
 #pragma once
 
+#include <Arduino.h>
+
 class PIDController {
 public:
     PIDController();
