@@ -46,9 +46,9 @@ void GaggiaPID::begin() {
 void GaggiaPID::menuLoop() {
     m_buttons.update();
     ButtonHandler::Button pressed = m_buttons.getPressed();
-
+    Mode current_mode = checkMode();
     currentTemp = m_thermocouple.readCelsius();
-    if (checkMode() == BREW_MODE) 
+    if (current_mode == BREW_MODE) 
         ssr_duty = m_pid.update(brewTemp, currentTemp);
     else 
         ssr_duty = m_pid.update(steamTemp, currentTemp);
@@ -61,7 +61,7 @@ void GaggiaPID::menuLoop() {
             if (pressed == ButtonHandler::SELECT) // this takes priority over updating brew/steam display
                 m_display.settingsDisplay(brewTemp, steamTemp, kp, ki, kd);
             // only select button is used currently (to go to settings)
-            else if (checkMode() == BREW_MODE)
+            else if (current_mode == BREW_MODE)
                 m_display.brewDisplay(currentTemp, brewTemp);
             else
                 m_display.steamDisplay(currentTemp, steamTemp);
@@ -103,12 +103,13 @@ void GaggiaPID::menuLoop() {
                 // save settings and go back to brew / steam screen
                 m_eeprom.writeSettings(brewTemp, steamTemp, kp, ki, kd);
                 m_pid.begin(kp, ki, kd);
-                if (checkMode() == BREW_MODE)
+                if (current_mode == BREW_MODE)
                     m_display.brewDisplay(currentTemp, brewTemp);
                 else
                     m_display.steamDisplay(currentTemp, steamTemp);
             }
     }
+    delay(100); // update every 100ms
 }
 
 GaggiaPID::Mode GaggiaPID::checkMode() {
