@@ -1,13 +1,27 @@
 #include "gaggiaPID.h"
 
 GaggiaPID::GaggiaPID(uint8_t tempSwitchPin)
-    : m_switchPin(tempSwitchPin) {
-        pinMode(m_switchPin, INPUT_PULLUP);
-    }
+    : brewTemp(0), 
+      steamTemp(0), 
+      currentTemp(0),
+      kp(0), 
+      ki(0), 
+      kd(0), 
+      ssr_duty(0.0f),
+      // m_display(), m_buttons(), etc. are implicitly default-initialized here in order
+      m_switchPin(tempSwitchPin) 
+{
+    pinMode(tempSwitchPin, INPUT_PULLUP);
+}
 
 void GaggiaPID::begin() {
 
-    m_display.begin();
+    if (! m_display.begin()) {
+        while (true) {
+            Serial.println("Display init failed");
+            delay(1000); // Wait before retrying
+        }
+    }
 
     if (! m_thermocouple.begin()) {
         m_display.errorDisplay((char*)"TC ERROR");
@@ -37,9 +51,8 @@ void GaggiaPID::begin() {
     currentTemp = m_thermocouple.readCelsius();
 
     m_display.initDisplay(initMsg);
-    delay(1000);
+    delay(5000);
 
-    m_pid.begin(kp, ki, kd);
     m_display.brewDisplay(currentTemp, brewTemp);
 }
 

@@ -33,5 +33,5 @@ private:
     EEPROMHandler m_eeprom;
 
     uint8_t m_switchPin;
-    static constexpr uint8_t TEMP_SWITCH_PIN = 7; 
+    static constexpr uint8_t TEMP_SWITCH_PIN = 10; 
 };

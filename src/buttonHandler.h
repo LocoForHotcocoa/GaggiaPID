@@ -27,11 +27,10 @@ public:
 private:
     
     Bounce m_buttons[BUTTON_COUNT];
-    static constexpr uint32_t DEBOUNCE_MS = 50;
-    static constexpr uint8_t UP_PIN = 2; //red
-    static constexpr uint8_t DOWN_PIN = 3; //blue
-    static constexpr uint8_t SELECT_PIN = 4; //green
-    static constexpr uint8_t BACK_PIN = 5; //yellow
-    static constexpr uint8_t RELAY_PIN = 6;
+    static constexpr uint16_t DEBOUNCE_MS = 50;
+    static constexpr uint8_t UP_PIN = 6; //red
+    static constexpr uint8_t DOWN_PIN = 7; //blue
+    static constexpr uint8_t SELECT_PIN = 8; //green
+    static constexpr uint8_t BACK_PIN = 9; //yellow
     // static constexpr uint32_t LONGPRESS_MS  = 1000;
 };

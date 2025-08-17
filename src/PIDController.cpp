@@ -1,15 +1,18 @@
 #include "PIDController.h"
 
-PIDController::PIDController() = default;
+PIDController::PIDController() : 
+    kp(0.0f), ki(0.0f), kd(0.0f), m_integral(0.0f), m_lastError(0.0f) {
+    // Constructor initializes PID gains and internal state
+}
 
-bool PIDController::begin(float& kp, float& ki, float& kd) {
+bool PIDController::begin(const float& kp, const float& ki, const float& kd) {
     this->kp = kp;
     this->ki = ki;
     this->kd = kd;
     return true;
 }
 
-float PIDController::update(float& setpoint, float& measured) {
+float PIDController::update(const float& setpoint, const float& measured) {
     float error = setpoint - measured;
 
     // Proportional term

@@ -13,5 +13,5 @@ private:
   unsigned long m_windowStartTime;
   unsigned long m_onTime;
   static constexpr unsigned long m_windowSize = 5000; // 5 second window
-  static constexpr uint8_t SSR_PIN = 6;
+  static constexpr uint8_t SSR_PIN = 16;
 };

@@ -7,8 +7,8 @@
 class PIDController {
 public:
     PIDController();
-    bool begin(float& kp, float& ki, float& kd);
-    float update(float& setpoint, float& measured);
+    bool begin(const float& kp, const float& ki, const float& kd);
+    float update(const float& setpoint, const float& measured);
     float kp, ki, kd;
 private:
     float m_integral, m_lastError;
