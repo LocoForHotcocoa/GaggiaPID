@@ -1,8 +1,15 @@
 # GaggiaPID
-PID for Gaggia Classic espresso machine
+Arduino-based PID control system for my espresso machine.
 
 Forked and took inspiration from https://github.com/samrausch/gaggiaPID/.
 
+![current_update](assets/update_250818.jpg)
+*More update and build pictures are stored in the `assets/` directory.*
+
+### End Goal
+Finely control the boiler temperature of my boiler with the PID algorithm, and create a user interface to easily change parameters / target temperature.
+
+### Components
 * Arduino board of your choice (I am using an *offbrand* [Sparkfun Pro Micro](https://www.sparkfun.com/pro-micro-5v-16mhz.html))
 * MCP9600 thermocouple amp (https://www.adafruit.com/product/4101)
 * M4 threaded K-type thermocouple (widely available from Amazon, etc as a replacement part for 3D printers)
