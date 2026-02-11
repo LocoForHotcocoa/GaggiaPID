@@ -1,11 +1,11 @@
 #pragma once
 
-#include "buttonHandler.h"
-#include "display.h"
-#include "PIDController.h"
-#include "SSR.h"
-#include "thermocouple.h"
-#include "eepromHandler.h"
+#include "buttons/buttonHandler.h"
+#include "display/display.h"
+#include "pid/PIDController.h"
+#include "pid/SSR.h"
+#include "pid/thermocouple.h"
+#include "eeprom/eepromHandler.h"
 
 class GaggiaPID {
 public:
